@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QMX SWR Analyzer</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --text: #f8fafc;
+      --subtext: #94a3b8;
+      --border: #334155;
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --success: #22c55e;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 900px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card);
+      padding: 14px 16px;
+      border-radius: 14px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    }
+
+    header .header-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    header .header-actions button {
+      min-height: 36px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.1rem;
+      color: var(--accent);
+    }
+
+    .status-badge {
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--subtext);
+      font-weight: 600;
+    }
+
+    .status-badge.connected {
+      background: rgba(34, 197, 94, 0.16);
+      color: var(--success);
+    }
+
+    .controls-card {
+      background: var(--card);
+      padding: 10px;
+      border-radius: 14px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: nowrap;
+      justify-content: stretch;
+      align-items: center;
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 0.78rem;
+      color: var(--subtext);
+    }
+
+    select,
+    input,
+    button {
+      background: #0d1320;
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 7px 10px;
+      border-radius: 10px;
+      font-size: 0.86rem;
+      outline: none;
+    }
+
+    .button-row button {
+      flex: 1;
+      min-width: 0;
+    }
+
+    select:focus,
+    input:focus {
+      border-color: rgba(56, 189, 248, 0.8);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.1);
+    }
+
+    button {
+      background: var(--accent);
+      color: #000;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background 0.2s, transform 0.2s;
+      min-height: 36px;
+      padding: 7px 10px;
+      font-size: 0.84rem;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    #sweepBtn {
+      background: var(--success);
+      color: #000;
+    }
+
+    #sweepBtn:hover:not(:disabled) {
+      background: #16a34a;
+    }
+
+    button.btn-stop {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    button.btn-stop:hover:not(:disabled) {
+      background: var(--danger-hover);
+    }
+
+    .chart-card {
+      background: var(--card);
+      padding: 12px;
+      border-radius: 14px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    canvas {
+      width: 100%;
+      height: 585px;
+      background: var(--bg);
+      border-radius: 12px;
+    }
+
+    .summary-card,
+    .log-card {
+      background: var(--card);
+      padding: 12px;
+      border-radius: 14px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    }
+
+
+    .summary-card {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+
+    .summary-item {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 10px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      min-height: 64px;
+    }
+
+    .summary-label {
+      color: var(--subtext);
+      font-size: 0.56rem;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .summary-value {
+      color: var(--text);
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    #log {
+      font-family: monospace;
+      font-size: 0.82rem;
+      height: 600px;
+      overflow-y: auto;
+      background: #0d1320;
+      padding: 10px;
+      border-radius: 10px;
+      color: var(--subtext);
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 4px;
+    }
+
+    .log-entry {
+      margin: 0;
+    }
+
+    @media (max-width: 640px) {
+      .controls-card {
+        grid-template-columns: 1fr;
+      }
+
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      body {
+        padding: 10px;
+      }
+
+      .container {
+        gap: 12px;
+      }
+
+      canvas {
+        height: 330px;
+      }
+
+      #log {
+        height: 90px;
+      }
+    }
+  </style>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="QMX SWR Analyzer">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+  <div class="container">
+    <header>
+      <h1>QMX SWR Analyzer</h1>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div id="statusBadge" class="status-badge">Disconnected</div>
+        <button id="connectBtn">Connect</button>
+        <button id="installBtn" hidden>Install App</button>
+      </div>
+    </header>
+
+    <div class="controls-card">
+      <div class="field">
+        <label for="bandSelect">Band</label>
+        <select id="bandSelect" disabled>
+          <option value="all-80-20">All 80m-20m</option>
+          <option value="all-60-15">All 60m-15m</option>
+          <option value="all-20-10">All 20m-10m</option>
+          <option value="10m">10m (28.000 - 29.700 MHz)</option>
+          <option value="12m">12m (24.890 - 24.990 MHz)</option>
+          <option value="15m">15m (21.000 - 21.450 MHz)</option>
+          <option value="17m">17m (18.068 - 18.168 MHz)</option>
+          <option value="20m">20m (14.000 - 14.350 MHz)</option>
+          <option value="30m">30m (10.100 - 10.150 MHz)</option>
+          <option value="40m">40m (7.000 - 7.300 MHz)</option>
+          <option value="60m">60m (5.332 - 5.405 MHz)</option>
+          <option value="80m">80m (3.500 - 3.800 MHz)</option>
+          <option value="160m">160m (1.830 - 1.850 MHz)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="stepSelect">Step</label>
+        <select id="stepSelect" disabled>
+          <option value="1000">1 kHz</option>
+          <option value="5000">5 kHz</option>
+          <option value="10000">10 kHz</option>
+          <option value="25000">25 kHz</option>
+          <option value="50000">50 kHz</option>
+          <option value="100000">100 kHz</option>
+          <option value="250000">250 kHz</option>
+        </select>
+      </div>
+
+      <div class="button-row">
+        <button id="sweepBtn" disabled>Start</button>
+        <button id="stopBtn" class="btn-stop" disabled>Stop</button>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <canvas id="swrChart"></canvas>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-item">
+        <div class="summary-label">Lowest SWR</div>
+        <div id="lowestSWR" class="summary-value">-</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">Frequency</div>
+        <div id="lowestFreq" class="summary-value">-</div>
+      </div>
+    </div>
+
+    <div class="log-card">
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { serial as usbSerialPolyfill } from 'https://CiSC87.github.io/web-serial-polyfill/serial.js';
+
+    const SERIAL_BAUD_RATE = 38400;
+
+    const QMX_SERIAL_FILTERS = [
+      { usbVendorId: 0x0483, usbProductId: 0xa34c },
+    ];
+
+    const SERIAL_REQUEST_OPTIONS = QMX_SERIAL_FILTERS.length > 0 ? { filters: QMX_SERIAL_FILTERS } : undefined;
+
+    const CAT_COMMAND_SETTLE_TIME = 10; // Delay after CAT commands for settling
+    const CAT_MAX_RETRIES = 3;
+    const CAT_TIMEOUT_MS = 1000;
+    const CAT_RETRY_DELAY_MS = 1000;
+
+
+    const SWR_SAMPLES_PER_POINT = 5; // Number of SWR readings per frequency point
+    const SWR_SAMPLES_DELAY = 10; // Delay before each SWR measurement
+
+    const GRAPH_MIN_SWR_VALUE = 1.0;
+    const GRAPH_MAX_SWR_VALUE = 8.0;
+
+    const SWEEP_MAX_PA_VOLTAGE = 1.0;
+    const EXPECTED_SWEEP_MAX_PA_VOLTAGE_RESPONSE = 'MM1.00';
+    const RESTORED_MAX_PA_VOLTAGE = 11.5;
+
+    const SWEEP_SWR_PROTECTION = 'DISABLED';
+    const RESTORED_SWR_PROTECTION = 'ENABLED';
+
+    const SWEEP_BAND_LIMITS = 'None';
+    const RESTORED_BAND_LIMITS = 'ITU Region 2';
+
+    const REFINEMENT_WINDOW_HZ = 10000;
+    const REFINEMENT_STEP_HZ = 1000;
+
+    const bandPresets = {
+      '10m': { start: 28000000, end: 29700000 },
+      '12m': { start: 24890000, end: 24990000 },
+      '15m': { start: 21000000, end: 21450000 },
+      '17m': { start: 18068000, end: 18168000 },
+      '20m': { start: 14000000, end: 14350000 },
+      '30m': { start: 10100000, end: 10150000 },
+      '40m': { start: 7000000, end: 7300000 },
+      '60m': { start: 5332000, end: 5405000 },
+      '80m': { start: 3500000, end: 3800000 },
+      '160m': { start: 1830000, end: 1850000 },
+      'all-80-20': { start: 3500000, end: 14350000 },
+      'all-60-15': { start: 5332000, end: 21450000 },
+      'all-20-10': { start: 14000000, end: 29700000 },
+    };
+
+    let port;
+    let reader;
+    let writer;
+    let chart;
+    let isSweeping = false;
+    let cancelRequested = false;
+
+    const connectBtn = document.getElementById('connectBtn');
+    const installBtn = document.getElementById('installBtn');
+    const sweepBtn = document.getElementById('sweepBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const bandSelect = document.getElementById('bandSelect');
+    const stepSelect = document.getElementById('stepSelect');
+    if (connectBtn) {
+      connectBtn.type = 'button';
+    }
+    if (installBtn) {
+      installBtn.type = 'button';
+    }
+    const statusBadge = document.getElementById('statusBadge');
+    const logDiv = document.getElementById('log');
+    const lowestSWR = document.getElementById('lowestSWR');
+    const lowestFreq = document.getElementById('lowestFreq');
+
+    let lastSweepAnchorHz = null;
+    let lastSweepResults = [];
+    let lastSweepBand = null;
+    let deferredInstallPrompt = null;
+
+    function hasWebUsb() {
+      try {
+        return !!(navigator && navigator.usb && typeof navigator.usb.requestDevice === 'function');
+      } catch (err) {
+        return false;
+      }
+    }
+
+    function hasWebSerial() {
+      try {
+        return !!(navigator && 'serial' in navigator && typeof navigator.serial.requestPort === 'function');
+      } catch (err) {
+        return false;
+      }
+    }
+
+    function isAndroid() {
+      return /Android/i.test(navigator.userAgent);
+    }
+
+    function isWindows() {
+      return /Win/i.test(navigator.platform) || /Windows/i.test(navigator.userAgent);
+    }
+
+    function isLinux() {
+      return /Linux/i.test(navigator.platform) && !isAndroid();
+    }
+
+    const secureOrigin = window.isSecureContext === true || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    const webSerialAvailable = hasWebSerial();
+    const webUsbAvailable = hasWebUsb();
+    const android = isAndroid();
+    const windows = isWindows();
+    const linux = isLinux();
+
+    const useNativeSerial = (windows || linux) && webSerialAvailable;
+    const usePolyfill = android && webUsbAvailable;
+    const serialAPI = useNativeSerial ? navigator.serial : (usePolyfill ? usbSerialPolyfill : (webSerialAvailable ? navigator.serial : (webUsbAvailable ? usbSerialPolyfill : null)));
+    const serialSupported = Boolean(serialAPI);
+    const platformSupportsRequestPort = serialSupported;
+
+    if (useNativeSerial) {
+      log('Using native Web Serial API on Windows/Linux.');
+    } else if (usePolyfill) {
+      log('Using WebUSB serial polyfill on Android.');
+    } else if (webSerialAvailable) {
+      log('Native Web Serial API available, using it.');
+    } else if (webUsbAvailable) {
+      log('WebUSB serial polyfill available, using it.');
+    }
+
+    if (!serialSupported || !serialAPI) {
+      connectBtn.disabled = true;
+      connectBtn.textContent = 'Serial Unsupported';
+      log('No supported serial stack found. Use Chrome desktop or a browser with Web Serial / WebUSB support.');
+      if (!secureOrigin) {
+        log('Serial access requires a secure origin (HTTPS or localhost).');
+      }
+      log(`secureOrigin=${secureOrigin}, navigator.serial=${String(navigator?.serial)}, navigator.usb=${String(navigator?.usb)}`);
+    } else {
+      connectBtn.textContent = 'Connect Serial';
+    }
+
+    function updateInstallButton() {
+      if (!installBtn) return;
+      const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+      installBtn.hidden = standalone || !deferredInstallPrompt;
+    }
+
+    if (installBtn) {
+      installBtn.addEventListener('click', async () => {
+        if (!deferredInstallPrompt) return;
+        deferredInstallPrompt.prompt();
+        const choice = await deferredInstallPrompt.userChoice;
+        log(`Install prompt response: ${choice.outcome}`);
+        deferredInstallPrompt = null;
+        updateInstallButton();
+      });
+    }
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      updateInstallButton();
+    });
+
+    window.addEventListener('appinstalled', () => {
+      log('PWA installed successfully.');
+      deferredInstallPrompt = null;
+      updateInstallButton();
+    });
+
+    function initChart() {
+      const ctx = document.getElementById('swrChart').getContext('2d');
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'SWR',
+            data: [],
+            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.2,
+            pointRadius: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              title: { display: true, text: 'Frequency (MHz)', color: '#94a3b8' },
+              ticks: { color: '#94a3b8' },
+              grid: { color: '#334155' }
+            },
+            y: {
+              title: { display: true, text: 'SWR', color: '#94a3b8' },
+              min: 1.0,
+              suggestedMax: 3.0,
+              ticks: { color: '#94a3b8' },
+              grid: { color: '#334155' }
+            }
+          }
+        }
+      });
+    }
+
+    function log(msg) {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logDiv.prepend(entry);
+      logDiv.scrollTop = 0;
+    }
+
+    function updateSweepValues(swr, freqMHz) {
+      if (lowestSWR) {
+        lowestSWR.textContent = swr;
+      }
+      if (lowestFreq) {
+        lowestFreq.textContent = freqMHz;
+      }
+    }
+
+    function clearSweepValues() {
+      updateSweepValues('-', '-');
+    }
+
+    function formatError(err) {
+      if (err instanceof Error) return err.message;
+      if (err === undefined) return 'undefined';
+      if (err === null) return 'null';
+      return String(err);
+    }
+
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    async function safeReaderRead() {
+      try {
+        return await reader.read();
+      } catch (err) {
+        log("Serial read error: " + formatError(err));
+        try {
+          await reader.cancel();
+        } catch (cancelErr) {
+          log("Reader cancel error: " + formatError(cancelErr));
+        }
+        reader = port.readable.getReader();
+        throw err;
+      }
+    }
+
+    async function sendCAT(command) {
+      if (!writer) return;
+      const encoder = new TextEncoder();
+      log(`TX CAT: ${command};`);
+      await writer.write(encoder.encode(command + ';'));
+      await delay(CAT_COMMAND_SETTLE_TIME);
+    }
+
+    async function queryCAT(command) {
+      for (let attempt = 1; attempt <= CAT_MAX_RETRIES; attempt++) {
+        await sendCAT(command);
+        let buffer = '';
+        const decoder = new TextDecoder();
+
+        const timeout = new Promise(resolve => setTimeout(() => resolve({ timeout: true }), CAT_TIMEOUT_MS));
+        const readPromise = safeReaderRead().then(result => ({ result }));
+        let race;
+        try {
+          race = await Promise.race([readPromise, timeout]);
+        } catch (readErr) {
+          log(`Warning: serial read failed (${attempt}/${CAT_MAX_RETRIES}) for '${command}': ${formatError(readErr)}`);
+          if (attempt < CAT_MAX_RETRIES) {
+            log(`Retrying CAT command in ${CAT_RETRY_DELAY_MS / 1000}s...`);
+            await delay(CAT_RETRY_DELAY_MS);
+            continue;
+          }
+          log(`CAT command failed after ${CAT_MAX_RETRIES} attempts due to serial read error: '${command}'`);
+          return null;
+        }
+
+        if (race && race.timeout) {
+          log(`Warning: CAT response timeout (${attempt}/${CAT_MAX_RETRIES}) for '${command}'`);
+          try {
+            await reader.cancel();
+          } catch (err) {
+            log("Reader cancel error: " + formatError(err));
+          }
+          reader = port.readable.getReader();
+
+          if (attempt < CAT_MAX_RETRIES) {
+            log(`Retrying CAT command in ${CAT_RETRY_DELAY_MS / 1000}s...`);
+            await delay(CAT_RETRY_DELAY_MS);
+            continue;
+          }
+
+          log(`CAT command failed after ${CAT_MAX_RETRIES} attempts: '${command}'`);
+          return null;
+        }
+
+        const { value, done } = race.result;
+        if (done) {
+          log(`Warning: CAT stream ended unexpectedly for '${command}'`);
+          return null;
+        }
+
+        buffer += decoder.decode(value);
+        while (!buffer.includes(';')) {
+          const { value: nextValue, done: nextDone } = await reader.read();
+          if (nextDone) break;
+          buffer += decoder.decode(nextValue);
+        }
+
+        const result = buffer.trim().replace(';', '');
+        log(`RX CAT: ${result}`);
+        return result;
+      }
+
+      return null;
+    }
+
+    function parseSWRResponse(response) {
+      if (!response) return NaN;
+      const digits = response.replace(/[^\d]/g, '');
+      const rawValue = parseInt(digits, 10);
+      if (!Number.isFinite(rawValue) || rawValue <= 0) return NaN;
+      return rawValue / 100.0;
+    }
+
+    async function readSWR() {
+      await delay(SWR_SAMPLES_DELAY);
+      const response = await queryCAT('SW');
+      const value = parseSWRResponse(response);
+      if (Number.isNaN(value)) {
+        log(`Warning: invalid SWR response '${response}'`);
+      }
+      return value;
+    }
+
+    function findLowestSWRPoint(points) {
+      if (!points.length) return null;
+      return points.reduce((best, current) => current.value < best.value ? current : best, points[0]);
+    }
+
+    function buildSweepPoints(startHz, endHz, stepHz) {
+      const points = [];
+      for (let freq = startHz; freq <= endHz; freq += stepHz) {
+        points.push(freq);
+      }
+      return points;
+    }
+
+    function renderResults(results) {
+      results.sort((a, b) => a.freq - b.freq);
+      chart.data.labels = results.map(result => (result.freq / 1000000).toFixed(3));
+      chart.data.datasets[0].data = results.map(result => result.value);
+      chart.update();
+      return results;
+    }
+
+    async function performSweep(startHz, endHz, stepHz, { clearChart = true, updateChart = true } = {}) {
+      const points = buildSweepPoints(startHz, endHz, stepHz);
+      const results = [];
+
+      if (clearChart && updateChart) {
+        chart.data.labels = [];
+        chart.data.datasets[0].data = [];
+        chart.update();
+      }
+
+      for (const freq of points) {
+        if (cancelRequested) break;
+
+        const freqFormatted = String(freq).padStart(11, '0');
+        await sendCAT(`FA${freqFormatted}`);
+        await sendCAT('KD1');
+
+        const swrSamples = [];
+        for (let sample = 0; sample < SWR_SAMPLES_PER_POINT; sample++) {
+          const swrSample = await readSWR();
+          if (Number.isFinite(swrSample)) swrSamples.push(swrSample);
+        }
+
+        await sendCAT('KD0');
+
+        let swrVal;
+        if (swrSamples.length === 0) {
+          log(`Warning: no valid SWR samples, falling back to ${GRAPH_MIN_SWR_VALUE.toFixed(2)}:1`);
+          swrVal = GRAPH_MIN_SWR_VALUE;
+        } else {
+          const sortedSamples = swrSamples.slice().sort((a, b) => a - b);
+          const trimmedSamples = sortedSamples.length >= SWR_SAMPLES_PER_POINT ? sortedSamples.slice(1, -1) : sortedSamples;
+          swrVal = trimmedSamples.reduce((sum, value) => sum + value, 0) / trimmedSamples.length;
+        }
+
+        swrVal = Math.min(Math.max(swrVal, GRAPH_MIN_SWR_VALUE), GRAPH_MAX_SWR_VALUE);
+        const freqMHz = (freq / 1000000).toFixed(3);
+        log(`Freq: ${freqMHz} MHz | SWR: ${swrVal.toFixed(2)}:1`);
+        results.push({ freq, value: swrVal });
+
+        if (clearChart) {
+          chart.data.labels.push(freqMHz);
+          chart.data.datasets[0].data.push(swrVal);
+          chart.update('none');
+        }
+      }
+
+      if (!clearChart) {
+        if (updateChart) {
+          const combined = new Map();
+          lastSweepResults.forEach(point => combined.set(point.freq, point));
+          results.forEach(point => combined.set(point.freq, point));
+          const merged = Array.from(combined.values()).sort((a, b) => a.freq - b.freq);
+          lastSweepResults = renderResults(merged);
+          return merged;
+        }
+        return results;
+      }
+
+      if (updateChart) {
+        lastSweepResults = results;
+        lastSweepBand = { startHz, endHz, stepHz };
+      }
+      return results;
+    }
+
+    async function disconnectSerialPort() {
+      if (!port) return;
+      try {
+        log("Closing serial connection...");
+        if (reader) {
+          await reader.cancel().catch(() => { });
+          reader.releaseLock?.();
+          reader = null;
+        }
+        if (writer) {
+          await writer.close().catch(() => { });
+          writer.releaseLock?.();
+          writer = null;
+        }
+        await port.close().catch((err) => log("Port close error: " + formatError(err)));
+      } catch (err) {
+        log("Disconnect Error: " + formatError(err));
+      } finally {
+        port = null;
+        statusBadge.textContent = "Disconnected";
+        statusBadge.classList.remove('connected');
+        connectBtn.textContent = "Connect";
+        sweepBtn.disabled = true;
+        stopBtn.disabled = true;
+        bandSelect.disabled = true;
+        stepSelect.disabled = true;
+        connectBtn.disabled = false;
+        log("Disconnected from port.");
+      }
+    }
+
+    connectBtn.addEventListener('click', async () => {
+      if (!serialSupported) {
+        log('Cannot connect: Web Serial API is not supported in this browser.');
+        return;
+      }
+
+      if (port) {
+        await disconnectSerialPort();
+        return;
+      }
+
+      try {
+        log('Opening Web Serial device...');
+        port = await serialAPI.requestPort(SERIAL_REQUEST_OPTIONS);
+        await port.open({ baudRate: SERIAL_BAUD_RATE });
+
+        writer = port.writable.getWriter();
+        reader = port.readable.getReader();
+
+        const now = new Date();
+        const tmCommand = `TM${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+        log(`Setting QMX clock from system time: ${tmCommand}`);
+        await sendCAT(tmCommand);
+
+        statusBadge.textContent = "Connected";
+        statusBadge.classList.add('connected');
+        connectBtn.textContent = "Disconnect";
+        sweepBtn.disabled = false;
+        stopBtn.disabled = true;
+        bandSelect.disabled = false;
+        stepSelect.disabled = false;
+        log("Connected to QMX Serial Device.");
+      } catch (err) {
+        log("Connection Error: " + formatError(err));
+      }
+    });
+
+    stopBtn.addEventListener('click', () => {
+      if (isSweeping) {
+        cancelRequested = true;
+        stopBtn.disabled = true;
+        log("Aborting sweep, please wait...");
+      }
+    });
+
+    sweepBtn.addEventListener('click', async () => {
+      if (isSweeping) return;
+      isSweeping = true;
+      cancelRequested = false;
+      sweepBtn.disabled = true;
+      stopBtn.disabled = false;
+      connectBtn.disabled = true;
+      clearSweepValues();
+
+      const selectedBand = bandPresets[bandSelect.value];
+      const stepSize = parseInt(stepSelect.value, 10);
+
+      try {
+        log("--- PRE-SWEEP CONFIGURATION ---");
+
+        log(`Setting Max PA Voltage to ${SWEEP_MAX_PA_VOLTAGE.toFixed(1)}V...`);
+        await sendCAT(`MMprotection|max. pa voltage=${SWEEP_MAX_PA_VOLTAGE}`);
+        let maxPaVoltage = await queryCAT('MMprotection|max. pa voltage');
+        if (maxPaVoltage != EXPECTED_SWEEP_MAX_PA_VOLTAGE_RESPONSE) {
+          log(`[ERROR] Max PA Voltage check failed! Got: '${maxPaVoltage}'. Aborting sweep.`);
+          return;
+        }
+        log(`Max PA Voltage check: ${maxPaVoltage}`);
+
+        log("Disabling SWR Protection...");
+        await sendCAT(`MMprotection|swr protection=${SWEEP_SWR_PROTECTION}`);
+        let swrProtection = await queryCAT('MMprotection|swr protection');
+        log(`'SWR protection check: '${swrProtection}'`)
+
+        log("Disabling Band limits...");
+        await sendCAT(`MMsystem config|band limits=${SWEEP_BAND_LIMITS}`);
+        let bandLimits = await queryCAT('MMsystem config|band limits');
+        log(`'Band limits check: ${bandLimits}'`)
+
+        await sendCAT(`MU`);
+
+        log("--- STARTING FREQUENCY SWEEP ---");
+        const results = await performSweep(selectedBand.start, selectedBand.end, stepSize);
+
+        if (!cancelRequested && results.length) {
+          log("--- SWEEP COMPLETE ---");
+          const bestPoint = findLowestSWRPoint(results);
+          if (bestPoint && lastSweepBand) {
+            const anchor = bestPoint.freq;
+            const zoomStart = Math.max(lastSweepBand.startHz, anchor - REFINEMENT_WINDOW_HZ);
+            const zoomEnd = Math.min(lastSweepBand.endHz, anchor + REFINEMENT_WINDOW_HZ);
+            log(`Refining around the lowest SWR point at ${Number(anchor / 1000000).toFixed(3)} MHz...`);
+            const zoomResults = await performSweep(zoomStart, zoomEnd, REFINEMENT_STEP_HZ, { clearChart: false, updateChart: false });
+            log("--- HIGH RES SWEEP COMPLETE ---");
+            const refinedBestPoint = findLowestSWRPoint(zoomResults);
+            if (refinedBestPoint) {
+              const freqMHz = (refinedBestPoint.freq / 1000000).toFixed(3);
+              const swrText = refinedBestPoint.value.toFixed(2);
+              const summary = `Refined lowest SWR: ${swrText}:1 at ${freqMHz} MHz`;
+              log(summary);
+              updateSweepValues(`${swrText}:1`, `${freqMHz} MHz`);
+            }
+          }
+        }
+      } catch (err) {
+        log("Error during sweep: " + formatError(err));
+      } finally {
+        log("--- POST-SWEEP RESTORATION ---");
+        try {
+          await sendCAT('KD0');
+
+          log(`Setting Max PA Voltage to ${RESTORED_MAX_PA_VOLTAGE.toFixed(1)}V...`);
+          await sendCAT(`MMprotection|max. pa voltage=${RESTORED_MAX_PA_VOLTAGE}`);
+
+          log("Enabling SWR Protection...");
+          await sendCAT(`MMprotection|swr protection=${RESTORED_SWR_PROTECTION}`);
+
+          log("Enabling Band limits...");
+          await sendCAT(`MMsystem config|band limits=${RESTORED_BAND_LIMITS}`);
+
+          await sendCAT(`MU`);
+
+        } catch (err) {
+          log("Restoration Error: " + formatError(err));
+        }
+        chart.update();
+        isSweeping = false;
+        cancelRequested = false;
+        sweepBtn.disabled = false;
+        stopBtn.disabled = true;
+        connectBtn.disabled = false;
+      }
+    });
+
+    initChart();
+    updateInstallButton();
+    window.addEventListener('pageshow', updateInstallButton);
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', async () => {
+        try {
+          const registration = await navigator.serviceWorker.register('/sw.js');
+          log(`Service worker registered: ${registration.scope}`);
+        } catch (err) {
+          log(`Service worker registration failed: ${formatError(err)}`);
+        }
+      });
+    }
+  </script>
+</body>
+
+</html>
