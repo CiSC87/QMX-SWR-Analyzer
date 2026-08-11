@@ -1,11 +1,11 @@
 const CACHE_NAME = 'qmx-swr-cache-v3';
 const ASSETS_TO_CACHE = [
   '/',
-  '/index.html',
-  '/manifest.json',
-  '/sw.js',
-  '/static/icon-192.png',
-  '/static/icon-512.png',
+  './index.html',
+  './manifest.json',
+  './sw.js',
+  './icon-192.png',
+  './icon-512.png',
   'https://CiSC87.github.io/web-serial-polyfill/serial.js',
   'https://cdn.jsdelivr.net/npm/chart.js',
 ];
@@ -31,9 +31,9 @@ self.addEventListener('activate', (event) => {
 
 const NETWORK_FIRST_URLS = [
   '/',
-  '/index.html',
-  '/manifest.json',
-  '/sw.js',
+  './index.html',
+  './manifest.json',
+  './sw.js',
 ];
 
 self.addEventListener('fetch', (event) => {
