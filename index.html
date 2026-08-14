@@ -952,13 +952,13 @@
         }
 
         // ENABLE THIS AT YOUR OWN RISK
-        log(`Setting "band limits" to "${SWEEP_CONFIG_BAND_LIMITS}"`);
-        await sendCAT(`MMsystem config|band limits=${SWEEP_CONFIG_BAND_LIMITS}`);
-        let bandLimits = (await queryCAT('MMsystem config|band limits')).substring(2);
-        log(`Setting "band limits" check: ${bandLimits}'`)
-        if (bandLimits != SWEEP_CONFIG_BAND_LIMITS) {
-          throw new Error(`"band limits" check failed (got "${bandLimits}"). Aborting sweep.`);
-        }
+        // log(`Setting "band limits" to "${SWEEP_CONFIG_BAND_LIMITS}"`);
+        // await sendCAT(`MMsystem config|band limits=${SWEEP_CONFIG_BAND_LIMITS}`);
+        // let bandLimits = (await queryCAT('MMsystem config|band limits')).substring(2);
+        // log(`Setting "band limits" check: ${bandLimits}'`)
+        // if (bandLimits != SWEEP_CONFIG_BAND_LIMITS) {
+        //   throw new Error(`"band limits" check failed (got "${bandLimits}"). Aborting sweep.`);
+        // }
 
         log(`Setting "swr protection" to "${SWEEP_CONFIG_SWR_PROTECTION}"`);
         await sendCAT(`MMprotection|swr protection=${SWEEP_CONFIG_SWR_PROTECTION}`);
@@ -1016,8 +1016,8 @@
           await sendCAT(`MMprotection|max. pa voltage=${preSweepMaxPaVoltage}`);
 
           // ENABLE THIS AT YOUR OWN RISK
-          log(`Restoring "band limits" to "${preSweepBandLimits}"`);
-          await sendCAT(`MMsystem config|band limits=${preSweepBandLimits}`);
+          // log(`Restoring "band limits" to "${preSweepBandLimits}"`);
+          // await sendCAT(`MMsystem config|band limits=${preSweepBandLimits}`);
 
           log(`Restoring "swr protection" to "${preSweepSWRProtection}"`);
           await sendCAT(`MMprotection|swr protection=${preSweepSWRProtection}`);
