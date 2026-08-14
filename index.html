@@ -295,6 +295,7 @@
   <div class="container">
     <header>
       <h1>QMX SWR Analyzer</h1>
+      <h4>v0.0.2</h4>
       <div style="display:flex; gap:10px; align-items:center;">
         <div id="statusBadge" class="status-badge">Disconnected</div>
         <button id="connectBtn">Connect</button>
@@ -306,19 +307,22 @@
       <div class="field">
         <label for="bandSelect">Band</label>
         <select id="bandSelect" disabled>
-          <option value="all-80-20">All 80m-20m</option>
-          <option value="all-60-15">All 60m-15m</option>
-          <option value="all-20-10">All 20m-10m</option>
+          <option value="6m">6m (50.000 - 51.000 MHz)</option>
           <option value="10m">10m (28.000 - 29.700 MHz)</option>
           <option value="12m">12m (24.890 - 24.990 MHz)</option>
           <option value="15m">15m (21.000 - 21.450 MHz)</option>
           <option value="17m">17m (18.068 - 18.168 MHz)</option>
-          <option value="20m">20m (14.000 - 14.350 MHz)</option>
+          <option value="20m" selected>20m (14.000 - 14.350 MHz)</option>
           <option value="30m">30m (10.100 - 10.150 MHz)</option>
           <option value="40m">40m (7.000 - 7.300 MHz)</option>
           <option value="60m">60m (5.332 - 5.405 MHz)</option>
           <option value="80m">80m (3.500 - 3.800 MHz)</option>
           <option value="160m">160m (1.830 - 1.850 MHz)</option>
+          <option value="all-160-6">All 160m-6m</option>
+          <option value="all-80-20">All 80m-20m</option>
+          <option value="all-60-15">All 60m-15m</option>
+          <option value="all-20-10">All 20m-10m</option>
+
         </select>
       </div>
 
@@ -326,7 +330,7 @@
         <label for="stepSelect">Step</label>
         <select id="stepSelect" disabled>
           <option value="1000">1 kHz</option>
-          <option value="5000">5 kHz</option>
+          <option value="5000" selected>5 kHz</option>
           <option value="10000">10 kHz</option>
           <option value="25000">25 kHz</option>
           <option value="50000">50 kHz</option>
@@ -377,27 +381,25 @@
     const CAT_TIMEOUT_MS = 1000;
     const CAT_RETRY_DELAY_MS = 1000;
 
-
     const SWR_SAMPLES_PER_POINT = 5; // Number of SWR readings per frequency point
     const SWR_SAMPLES_DELAY = 10; // Delay before each SWR measurement
 
     const GRAPH_MIN_SWR_VALUE = 1.0;
     const GRAPH_MAX_SWR_VALUE = 8.0;
 
-    const SWEEP_MAX_PA_VOLTAGE = 1.0;
-    const EXPECTED_SWEEP_MAX_PA_VOLTAGE_RESPONSE = 'MM1.00';
-    const RESTORED_MAX_PA_VOLTAGE = 11.5;
-
-    const SWEEP_SWR_PROTECTION = 'DISABLED';
-    const RESTORED_SWR_PROTECTION = 'ENABLED';
-
-    const SWEEP_BAND_LIMITS = 'None';
-    const RESTORED_BAND_LIMITS = 'ITU Region 2';
-
     const REFINEMENT_WINDOW_HZ = 10000;
     const REFINEMENT_STEP_HZ = 1000;
 
+    const SWEEP_CONFIG_SPLIT = "0"
+    const SWEEP_CONFIG_RVFO = "0"
+    const SWEEP_CONFIG_TVFO = "0"
+    const SWEEP_CONFIG_MODE = "3"
+    const SWEEP_CONFIG_MAX_PA_VOLTAGE = "1.00"
+    const SWEEP_CONFIG_BAND_LIMITS = "None"
+    const SWEEP_CONFIG_SWR_PROTECTION = "DISABLED"
+
     const bandPresets = {
+      '6m': { start: 50000000, end: 51000000 },
       '10m': { start: 28000000, end: 29700000 },
       '12m': { start: 24890000, end: 24990000 },
       '15m': { start: 21000000, end: 21450000 },
@@ -408,6 +410,7 @@
       '60m': { start: 5332000, end: 5405000 },
       '80m': { start: 3500000, end: 3800000 },
       '160m': { start: 1830000, end: 1850000 },
+      'all-160-6': { start: 1830000, end: 51000000 },
       'all-80-20': { start: 3500000, end: 14350000 },
       'all-60-15': { start: 5332000, end: 21450000 },
       'all-20-10': { start: 14000000, end: 29700000 },
@@ -623,7 +626,7 @@
     async function sendCAT(command) {
       if (!writer) return;
       const encoder = new TextEncoder();
-      log(`TX CAT: ${command};`);
+      //log(`TX CAT: ${command};`);
       await writer.write(encoder.encode(command + ';'));
       await delay(CAT_COMMAND_SETTLE_TIME);
     }
@@ -683,7 +686,7 @@
         }
 
         const result = buffer.trim().replace(';', '');
-        log(`RX CAT: ${result}`);
+        //log(`RX CAT: ${result}`);
         return result;
       }
 
@@ -883,31 +886,91 @@
       const selectedBand = bandPresets[bandSelect.value];
       const stepSize = parseInt(stepSelect.value, 10);
 
+      log("#########################################");
+      log("###############  NEW RUN  ###############");
+      log("#########################################");
+
+      log("--- PRE-SWEEP STATUS SAVING ---");
+
+      let preSweepSplit = (await queryCAT('SP')).substring(2);
+      log(`Current "split" is "${preSweepSplit}"`);
+      let preSweepRVFO = (await queryCAT('FR')).substring(2);
+      log(`Current "receive vfo" is "${preSweepRVFO}"`);
+      let preSweepTVFO = (await queryCAT('FR')).substring(2);
+      log(`Current "transmit vfo" is "${preSweepTVFO}"`);
+      let preSweepMode = (await queryCAT('MD')).substring(2);
+      log(`Current "mode" is "${preSweepMode}"`);
+      let preSweepMaxPaVoltage = (await queryCAT('MMprotection|max. pa voltage')).substring(2);
+      log(`Current "max. pa voltage" is "${preSweepMaxPaVoltage}"`);
+      let preSweepBandLimits = (await queryCAT('MMsystem config|band limits')).substring(2);
+      log(`Current "band limits" is "${preSweepBandLimits}"`);
+      let preSweepSWRProtection = (await queryCAT('MMprotection|swr protection')).substring(2);
+      log(`Current "swr protection" is "${preSweepSWRProtection}"`);
+
       try {
-        log("--- PRE-SWEEP CONFIGURATION ---");
 
-        log(`Setting Max PA Voltage to ${SWEEP_MAX_PA_VOLTAGE.toFixed(1)}V...`);
-        await sendCAT(`MMprotection|max. pa voltage=${SWEEP_MAX_PA_VOLTAGE}`);
-        let maxPaVoltage = await queryCAT('MMprotection|max. pa voltage');
-        if (maxPaVoltage != EXPECTED_SWEEP_MAX_PA_VOLTAGE_RESPONSE) {
-          log(`[ERROR] Max PA Voltage check failed! Got: '${maxPaVoltage}'. Aborting sweep.`);
-          return;
+        log("--- SWEEP CONFIGURATION ---");
+
+        log(`Setting "split" to "${SWEEP_CONFIG_SPLIT}"`);
+        await sendCAT(`SP${SWEEP_CONFIG_SPLIT}`);
+        let split = (await queryCAT('SP')).substring(2);
+        log(`Setting "split" check: "${split}"`)
+        if (split != SWEEP_CONFIG_SPLIT) {
+          throw new Error(`"split" check failed (got "${split}"). Aborting sweep.`);
         }
-        log(`Max PA Voltage check: ${maxPaVoltage}`);
 
-        log("Disabling SWR Protection...");
-        await sendCAT(`MMprotection|swr protection=${SWEEP_SWR_PROTECTION}`);
-        let swrProtection = await queryCAT('MMprotection|swr protection');
-        log(`'SWR protection check: '${swrProtection}'`)
+        log(`Setting "receive vfo" to "${SWEEP_CONFIG_RVFO}"`);
+        await sendCAT(`FR${SWEEP_CONFIG_RVFO}`);
+        let RVFO = (await queryCAT('FR')).substring(2);
+        log(`Setting "receive vfo" check: "${RVFO}"`)
+        if (RVFO != SWEEP_CONFIG_RVFO) {
+          throw new Error(`Setting "receive vfo" check failed (got "${RVFO}"). Aborting sweep.`);
+        }
 
-        log("Disabling Band limits...");
-        await sendCAT(`MMsystem config|band limits=${SWEEP_BAND_LIMITS}`);
-        let bandLimits = await queryCAT('MMsystem config|band limits');
-        log(`'Band limits check: ${bandLimits}'`)
+        log(`Setting "transmit vfo" to "${SWEEP_CONFIG_TVFO}"`);
+        await sendCAT(`FT${SWEEP_CONFIG_TVFO}`);
+        let TVFO = (await queryCAT('FT')).substring(2);
+        log(`Setting "receive vfo" check: "${TVFO}"`)
+        if (TVFO != SWEEP_CONFIG_TVFO) {
+          throw new Error(`Setting "transmit vfo" check failed (got "${TVFO}"). Aborting sweep.`);
+        }
+
+        log(`Setting "mode" to "${SWEEP_CONFIG_MODE}"`);
+        await sendCAT(`MD${SWEEP_CONFIG_MODE}`);
+        let mode = (await queryCAT('MD')).substring(2);
+        log(`Setting "mode" check: '${mode}'`)
+        if (mode != SWEEP_CONFIG_MODE) {
+          throw new Error(`Setting "mode" check failed (got "${mode}"). Aborting sweep.`);
+        }
+
+        log(`Setting "max. pa voltage" to "${SWEEP_CONFIG_MAX_PA_VOLTAGE}"`);
+        await sendCAT(`MMprotection|max. pa voltage=${SWEEP_CONFIG_MAX_PA_VOLTAGE}`);
+        let maxPaVoltage = (await queryCAT('MMprotection|max. pa voltage')).substring(2);
+        log(`Setting "max. pa voltage" check: ${maxPaVoltage}`);
+        if (maxPaVoltage != SWEEP_CONFIG_MAX_PA_VOLTAGE) {
+          throw new Error(`"max. pa voltage" check failed (got "${maxPaVoltage}"). Aborting sweep.`);
+        }
+
+        // ENABLE THIS AT YOUR OWN RISK
+        log(`Setting "band limits" to "${SWEEP_CONFIG_BAND_LIMITS}"`);
+        await sendCAT(`MMsystem config|band limits=${SWEEP_CONFIG_BAND_LIMITS}`);
+        let bandLimits = (await queryCAT('MMsystem config|band limits')).substring(2);
+        log(`Setting "band limits" check: ${bandLimits}'`)
+        if (bandLimits != SWEEP_CONFIG_BAND_LIMITS) {
+          throw new Error(`"band limits" check failed (got "${bandLimits}"). Aborting sweep.`);
+        }
+
+        log(`Setting "swr protection" to "${SWEEP_CONFIG_SWR_PROTECTION}"`);
+        await sendCAT(`MMprotection|swr protection=${SWEEP_CONFIG_SWR_PROTECTION}`);
+        let swrProtection = (await queryCAT('MMprotection|swr protection')).substring(2);
+        log(`Setting "swr protection" check: '${swrProtection}'`)
+        if (swrProtection != SWEEP_CONFIG_SWR_PROTECTION) {
+          throw new Error(`"swr protection" check failed (got "${swrProtection}"). Aborting sweep.`);
+        }
 
         await sendCAT(`MU`);
 
-        log("--- STARTING FREQUENCY SWEEP ---");
+        log("--- SWEEP RUN ---");
         const results = await performSweep(selectedBand.start, selectedBand.end, stepSize);
 
         if (!cancelRequested && results.length) {
@@ -937,14 +1000,27 @@
         try {
           await sendCAT('KD0');
 
-          log(`Setting Max PA Voltage to ${RESTORED_MAX_PA_VOLTAGE.toFixed(1)}V...`);
-          await sendCAT(`MMprotection|max. pa voltage=${RESTORED_MAX_PA_VOLTAGE}`);
+          log(`Restoring "split" to "${preSweepSplit}"`);
+          await sendCAT(`SP${preSweepSplit}`);
 
-          log("Enabling SWR Protection...");
-          await sendCAT(`MMprotection|swr protection=${RESTORED_SWR_PROTECTION}`);
+          log(`Restoring "receive vfo" to "${preSweepRVFO}"`);
+          await sendCAT(`FR${preSweepRVFO}`);
 
-          log("Enabling Band limits...");
-          await sendCAT(`MMsystem config|band limits=${RESTORED_BAND_LIMITS}`);
+          log(`Restoring "transmit vfo" to "${preSweepTVFO}"`);
+          await sendCAT(`FT${preSweepTVFO}`);
+
+          log(`Restoring "mode" to ${preSweepMode}`);
+          await sendCAT(`MD${preSweepMode}`);
+
+          log(`Restoring "max. pa voltage" to "${preSweepMaxPaVoltage}"`);
+          await sendCAT(`MMprotection|max. pa voltage=${preSweepMaxPaVoltage}`);
+
+          // ENABLE THIS AT YOUR OWN RISK
+          log(`Restoring "band limits" to "${preSweepBandLimits}"`);
+          await sendCAT(`MMsystem config|band limits=${preSweepBandLimits}`);
+
+          log(`Restoring "swr protection" to "${preSweepSWRProtection}"`);
+          await sendCAT(`MMprotection|swr protection=${preSweepSWRProtection}`);
 
           await sendCAT(`MU`);
 
