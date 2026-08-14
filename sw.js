@@ -29,7 +29,14 @@ self.addEventListener('fetch', (event) => {
   // Use network first for navigation requests (i.e., page loads) to get fresh version on pull‑to‑refresh
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => caches.match(request))
+      fetch(request).then(response => {
+        // Update cache with fresh response
+        if (response && response.status === 200 && request.method === 'GET') {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(request))
     );
     return;
   }
