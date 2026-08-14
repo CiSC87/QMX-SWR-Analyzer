@@ -294,7 +294,7 @@
 
   <div class="container">
     <header>
-      <h1>QMX SWR Analyzer <span class="status-badge" style="font-size:0.8rem; margin-left:8px;">v0.0.3</span></h1>
+      <h1>QMX SWR Analyzer <span class="status-badge" style="font-size:0.8rem; margin-left:8px;">v0.0.4</span></h1>
       <div style="display:flex; gap:10px; align-items:center;">
         <div id="statusBadge" class="status-badge">Disconnected</div>
         <button id="connectBtn">Connect</button>
@@ -964,7 +964,7 @@
           throw new Error(`"swr protection" check failed (got "${swrProtection}"). Aborting sweep.`);
         }
 
-        if (!disableBandLimits.checked) {
+        if (disableBandLimits.checked) {
           log(`Setting "band limits" to "${SWEEP_CONFIG_BAND_LIMITS}"`);
           await sendCAT(`MMsystem config|band limits=${SWEEP_CONFIG_BAND_LIMITS}`);
           let bandLimits = (await queryCAT('MMsystem config|band limits')).substring(2);
@@ -1029,7 +1029,7 @@
           log(`Restoring "swr protection" to "${preSweepSWRProtection}"`);
           await sendCAT(`MMprotection|swr protection=${preSweepSWRProtection}`);
 
-          if (!disableBandLimits.checked) {
+          if (disableBandLimits.checked) {
             log(`Restoring "band limits" to "${preSweepBandLimits}"`);
             await sendCAT(`MMsystem config|band limits=${preSweepBandLimits}`);
           } else {
