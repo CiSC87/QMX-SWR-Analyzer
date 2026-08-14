@@ -294,8 +294,7 @@
 
   <div class="container">
     <header>
-      <h1>QMX SWR Analyzer</h1>
-      <h4>v0.0.2</h4>
+      <h1>QMX SWR Analyzer <span class="status-badge" style="font-size:0.8rem; margin-left:8px;">v0.0.3</span></h1>
       <div style="display:flex; gap:10px; align-items:center;">
         <div id="statusBadge" class="status-badge">Disconnected</div>
         <button id="connectBtn">Connect</button>
@@ -337,6 +336,9 @@
           <option value="100000">100 kHz</option>
           <option value="250000">250 kHz</option>
         </select>
+      </div>
+      <div class="field">
+        <label><input type="checkbox" id="disableBandLimits"> Disable band limits (USE AT YOUR OWN RISK)</label>
       </div>
 
       <div class="button-row">
@@ -429,6 +431,7 @@
     const stopBtn = document.getElementById('stopBtn');
     const bandSelect = document.getElementById('bandSelect');
     const stepSelect = document.getElementById('stepSelect');
+    const disableBandLimits = document.getElementById('disableBandLimits');
     if (connectBtn) {
       connectBtn.type = 'button';
     }
@@ -892,6 +895,8 @@
 
       log("--- PRE-SWEEP STATUS SAVING ---");
 
+      let preSweepVFOAFreq = (await queryCAT('FA')).substring(2);
+      log(`Current "vfo a frequency" is "${preSweepVFOAFreq}"`);
       let preSweepSplit = (await queryCAT('SP')).substring(2);
       log(`Current "split" is "${preSweepSplit}"`);
       let preSweepRVFO = (await queryCAT('FR')).substring(2);
@@ -951,21 +956,24 @@
           throw new Error(`"max. pa voltage" check failed (got "${maxPaVoltage}"). Aborting sweep.`);
         }
 
-        // ENABLE THIS AT YOUR OWN RISK
-        // log(`Setting "band limits" to "${SWEEP_CONFIG_BAND_LIMITS}"`);
-        // await sendCAT(`MMsystem config|band limits=${SWEEP_CONFIG_BAND_LIMITS}`);
-        // let bandLimits = (await queryCAT('MMsystem config|band limits')).substring(2);
-        // log(`Setting "band limits" check: ${bandLimits}'`)
-        // if (bandLimits != SWEEP_CONFIG_BAND_LIMITS) {
-        //   throw new Error(`"band limits" check failed (got "${bandLimits}"). Aborting sweep.`);
-        // }
-
         log(`Setting "swr protection" to "${SWEEP_CONFIG_SWR_PROTECTION}"`);
         await sendCAT(`MMprotection|swr protection=${SWEEP_CONFIG_SWR_PROTECTION}`);
         let swrProtection = (await queryCAT('MMprotection|swr protection')).substring(2);
         log(`Setting "swr protection" check: '${swrProtection}'`)
         if (swrProtection != SWEEP_CONFIG_SWR_PROTECTION) {
           throw new Error(`"swr protection" check failed (got "${swrProtection}"). Aborting sweep.`);
+        }
+
+        if (!disableBandLimits.checked) {
+          log(`Setting "band limits" to "${SWEEP_CONFIG_BAND_LIMITS}"`);
+          await sendCAT(`MMsystem config|band limits=${SWEEP_CONFIG_BAND_LIMITS}`);
+          let bandLimits = (await queryCAT('MMsystem config|band limits')).substring(2);
+          log(`Setting "band limits" check: ${bandLimits}`);
+          if (bandLimits != SWEEP_CONFIG_BAND_LIMITS) {
+            throw new Error(`"band limits" check failed (got "${bandLimits}"). Aborting sweep.`);
+          }
+        } else {
+          log('Band limits flag unchecked. Keeping the existing setting.');
         }
 
         await sendCAT(`MU`);
@@ -1000,6 +1008,9 @@
         try {
           await sendCAT('KD0');
 
+          log(`Restoring "vfo a frequency" to "${preSweepVFOAFreq}"`);
+          await sendCAT(`FA${preSweepVFOAFreq}`);
+
           log(`Restoring "split" to "${preSweepSplit}"`);
           await sendCAT(`SP${preSweepSplit}`);
 
@@ -1015,12 +1026,15 @@
           log(`Restoring "max. pa voltage" to "${preSweepMaxPaVoltage}"`);
           await sendCAT(`MMprotection|max. pa voltage=${preSweepMaxPaVoltage}`);
 
-          // ENABLE THIS AT YOUR OWN RISK
-          // log(`Restoring "band limits" to "${preSweepBandLimits}"`);
-          // await sendCAT(`MMsystem config|band limits=${preSweepBandLimits}`);
-
           log(`Restoring "swr protection" to "${preSweepSWRProtection}"`);
           await sendCAT(`MMprotection|swr protection=${preSweepSWRProtection}`);
+
+          if (!disableBandLimits.checked) {
+            log(`Restoring "band limits" to "${preSweepBandLimits}"`);
+            await sendCAT(`MMsystem config|band limits=${preSweepBandLimits}`);
+          } else {
+            log('Band limits flag unchecked. Keeping the existing setting.');
+          }
 
           await sendCAT(`MU`);
 
