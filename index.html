@@ -294,7 +294,7 @@
 
   <div class="container">
     <header>
-      <h1>QMX SWR Analyzer <span class="status-badge" style="font-size:0.8rem; margin-left:8px;">v0.0.5</span></h1>
+      <h1>QMX SWR Analyzer <span class="status-badge" style="font-size:0.8rem; margin-left:8px;">v0.0.6</span></h1>
       <div style="display:flex; gap:10px; align-items:center;">
         <button id="connectBtn">Connect</button>
         <div id="statusBadge" class="status-badge">Disconnected</div>
@@ -335,6 +335,14 @@
           <option value="50000">50 kHz</option>
           <option value="100000">100 kHz</option>
           <option value="250000">250 kHz</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="voltageSelect">PA Voltage (drives output power)</label>
+        <select id="voltageSelect" disabled>
+          <option value="1.0" selected>1.0 volt (safer, but less accurate)</option>
+          <option value="2.0">2.0 volt</option>
+          <option value="3.0">3.0 volt</option>
         </select>
       </div>
       <div class="field">
@@ -379,13 +387,13 @@
 
     const SERIAL_REQUEST_OPTIONS = QMX_SERIAL_FILTERS.length > 0 ? { filters: QMX_SERIAL_FILTERS } : undefined;
 
-    const CAT_COMMAND_SETTLE_TIME = 10; // Delay after CAT commands for settling
+    const CAT_COMMAND_SETTLE_TIME = 20; // Delay after CAT commands for settling
     const CAT_MAX_RETRIES = 3;
     const CAT_TIMEOUT_MS = 1000;
     const CAT_RETRY_DELAY_MS = 1000;
 
     const SWR_SAMPLES_PER_POINT = 5; // Number of SWR readings per frequency point
-    const SWR_SAMPLES_DELAY = 10; // Delay before each SWR measurement
+    const SWR_SAMPLES_DELAY = 1; // Delay before each SWR measurement
 
     const GRAPH_MIN_SWR_VALUE = 1.0;
     const GRAPH_MAX_SWR_VALUE = 8.0;
@@ -397,7 +405,6 @@
     const SWEEP_CONFIG_RVFO = "0"
     const SWEEP_CONFIG_TVFO = "0"
     const SWEEP_CONFIG_MODE = "3"
-    const SWEEP_CONFIG_MAX_PA_VOLTAGE = "1.00"
     const SWEEP_CONFIG_BAND_LIMITS = "None"
     const SWEEP_CONFIG_SWR_PROTECTION = "DISABLED"
 
@@ -432,6 +439,7 @@
     const stopBtn = document.getElementById('stopBtn');
     const bandSelect = document.getElementById('bandSelect');
     const stepSelect = document.getElementById('stepSelect');
+    const voltageSelect = document.getElementById('voltageSelect');
     const disableBandLimits = document.getElementById('disableBandLimits');
     if (connectBtn) {
       connectBtn.type = 'button';
@@ -560,20 +568,21 @@
         },
         options: {
           responsive: true,
-          maintainAspectRatio: false,
+          maintainAspectRatio: true,
           plugins: {
             legend: { display: false }
           },
           scales: {
             x: {
+              type: 'linear',
               title: { display: true, text: 'Frequency (MHz)', color: '#94a3b8' },
-              ticks: { color: '#94a3b8' },
-              grid: { color: '#334155' }
+              ticks: { color: '#94a3b8', format: { minimumFractionDigits: 3, maximumFractionDigits: 3 } },
+              grid: { color: '#334155' },
             },
             y: {
               title: { display: true, text: 'SWR', color: '#94a3b8' },
               min: 1.0,
-              suggestedMax: 3.0,
+              suggestedMax: 2.0,
               ticks: { color: '#94a3b8' },
               grid: { color: '#334155' }
             }
@@ -752,6 +761,7 @@
         const freqFormatted = String(freq).padStart(11, '0');
         await sendCAT(`FA${freqFormatted}`);
         await sendCAT('KD1');
+        await delay(CAT_COMMAND_SETTLE_TIME * 2)
 
         const swrSamples = [];
         for (let sample = 0; sample < SWR_SAMPLES_PER_POINT; sample++) {
@@ -766,12 +776,10 @@
           log(`Warning: no valid SWR samples, falling back to ${GRAPH_MIN_SWR_VALUE.toFixed(2)}:1`);
           swrVal = GRAPH_MIN_SWR_VALUE;
         } else {
-          const sortedSamples = swrSamples.slice().sort((a, b) => a - b);
-          const trimmedSamples = sortedSamples.length >= SWR_SAMPLES_PER_POINT ? sortedSamples.slice(1, -1) : sortedSamples;
-          swrVal = trimmedSamples.reduce((sum, value) => sum + value, 0) / trimmedSamples.length;
+          swrVal = swrSamples.reduce((sum, value) => sum + value, 0) / swrSamples.length;
         }
-
         swrVal = Math.min(Math.max(swrVal, GRAPH_MIN_SWR_VALUE), GRAPH_MAX_SWR_VALUE);
+
         const freqMHz = (freq / 1000000).toFixed(3);
         log(`Freq: ${freqMHz} MHz | SWR: ${swrVal.toFixed(2)}:1`);
         results.push({ freq, value: swrVal });
@@ -828,6 +836,7 @@
         stopBtn.disabled = true;
         bandSelect.disabled = true;
         stepSelect.disabled = true;
+        voltageSelect.disabled = true;
         connectBtn.disabled = false;
         log("Disconnected from port.");
       }
@@ -864,6 +873,7 @@
         stopBtn.disabled = true;
         bandSelect.disabled = false;
         stepSelect.disabled = false;
+        voltageSelect.disabled = false;
         log("Connected to QMX Serial Device.");
       } catch (err) {
         log("Connection Error: " + formatError(err));
@@ -889,6 +899,7 @@
 
       const selectedBand = bandPresets[bandSelect.value];
       const stepSize = parseInt(stepSelect.value, 10);
+      const voltage = parseInt(voltageSelect.value, 10);
 
       log("#########################################");
       log("###############  NEW RUN  ###############");
@@ -902,7 +913,7 @@
       log(`Current "split" is "${preSweepSplit}"`);
       let preSweepRVFO = (await queryCAT('FR')).substring(2);
       log(`Current "receive vfo" is "${preSweepRVFO}"`);
-      let preSweepTVFO = (await queryCAT('FR')).substring(2);
+      let preSweepTVFO = (await queryCAT('FT')).substring(2);
       log(`Current "transmit vfo" is "${preSweepTVFO}"`);
       let preSweepMode = (await queryCAT('MD')).substring(2);
       log(`Current "mode" is "${preSweepMode}"`);
@@ -949,11 +960,11 @@
           throw new Error(`Setting "mode" check failed (got "${mode}"). Aborting sweep.`);
         }
 
-        log(`Setting "max. pa voltage" to "${SWEEP_CONFIG_MAX_PA_VOLTAGE}"`);
-        await sendCAT(`MMprotection|max. pa voltage=${SWEEP_CONFIG_MAX_PA_VOLTAGE}`);
+        log(`Setting "max. pa voltage" to "${voltage}"`);
+        await sendCAT(`MMprotection|max. pa voltage=${voltage}`);
         let maxPaVoltage = (await queryCAT('MMprotection|max. pa voltage')).substring(2);
         log(`Setting "max. pa voltage" check: ${maxPaVoltage}`);
-        if (maxPaVoltage != SWEEP_CONFIG_MAX_PA_VOLTAGE) {
+        if (maxPaVoltage != voltage) {
           throw new Error(`"max. pa voltage" check failed (got "${maxPaVoltage}"). Aborting sweep.`);
         }
 
@@ -990,7 +1001,7 @@
             const zoomStart = Math.max(lastSweepBand.startHz, anchor - REFINEMENT_WINDOW_HZ);
             const zoomEnd = Math.min(lastSweepBand.endHz, anchor + REFINEMENT_WINDOW_HZ);
             log(`Refining around the lowest SWR point at ${Number(anchor / 1000000).toFixed(3)} MHz...`);
-            const zoomResults = await performSweep(zoomStart, zoomEnd, REFINEMENT_STEP_HZ, { clearChart: false, updateChart: false });
+            const zoomResults = await performSweep(zoomStart, zoomEnd, REFINEMENT_STEP_HZ, { clearChart: false, updateChart: true });
             log("--- HIGH RES SWEEP COMPLETE ---");
             const refinedBestPoint = findLowestSWRPoint(zoomResults);
             if (refinedBestPoint) {
