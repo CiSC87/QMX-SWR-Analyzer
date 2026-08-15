@@ -388,9 +388,9 @@
     const SERIAL_REQUEST_OPTIONS = QMX_SERIAL_FILTERS.length > 0 ? { filters: QMX_SERIAL_FILTERS } : undefined;
 
     const CAT_COMMAND_SETTLE_TIME = 20; // Delay after CAT commands for settling
+    const CAT_TIMEOUT_MS = 500;
     const CAT_MAX_RETRIES = 3;
-    const CAT_TIMEOUT_MS = 1000;
-    const CAT_RETRY_DELAY_MS = 1000;
+    const CAT_RETRY_DELAY_MS = 200;
 
     const SWR_SAMPLES_PER_POINT = 5; // Number of SWR readings per frequency point
     const SWR_SAMPLES_DELAY = 1; // Delay before each SWR measurement
